@@ -51,7 +51,7 @@ showing both.
 ## Setup
 
 ```bash
-cp .env.example .env      # add your ANTHROPIC_API_KEY (console.anthropic.com)
+cp .env.example .env      # add ANTHROPIC_API_KEY or OPENAI_API_KEY
 npm test                  # offline tests, API stubbed
 npm run search -- "excursion"   # retrieval only, works without a key
 npm run sync              # extract dates -> out/school-letters.ics
@@ -61,6 +61,28 @@ npm run upcoming          # next 6 weeks
 
 The three letters in `letters/` are made-up samples. Delete them once you add
 real ones.
+
+## Choosing the model: Claude or OpenAI
+
+Set `LLM_PROVIDER` in `.env` to `claude` (Anthropic) or `openai`. If you leave it
+unset, the tool uses whichever API key you have filled in, preferring Claude
+when both are set. To switch for a single command:
+
+```bash
+LLM_PROVIDER=openai npm run ask -- "What's on next week?"
+```
+
+| Provider | Key | Model setting (default) |
+| --- | --- | --- |
+| `claude` | `ANTHROPIC_API_KEY` (console.anthropic.com) | `CLAUDE_MODEL` (`claude-sonnet-5-5`) |
+| `openai` | `OPENAI_API_KEY` (platform.openai.com) | `OPENAI_MODEL` (`gpt-5`) |
+
+`OPENAI_BASE_URL` points the OpenAI provider at any compatible endpoint, such as
+Azure OpenAI or a local server like Ollama, as long as it supports tool calling.
+
+The events cache is keyed by letter content, not by provider, so switching
+providers doesn't re-extract letters you've already synced. Delete
+`out/events-cache.json` to redo them with the new model.
 
 ## Adding letters
 
@@ -104,7 +126,7 @@ To run the sync automatically, schedule `npm run sync` with `launchd` (or
 ```
 src/letters.ts    load letters, read "Date:" header, paragraph chunking
 src/retrieve.ts   BM25 retriever behind a small Retriever interface
-src/llm.ts        Claude Messages API via fetch, optional forced tool call
+src/llm.ts        Claude or OpenAI via fetch, optional forced tool call
 src/events.ts     date extraction prompt + schema, cache, replacement logic
 src/ics.ts        iCalendar writer with VALARMs, RFC 5545 escaping and folding
 src/cli.ts        ask / sync / upcoming / search

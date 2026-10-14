@@ -4,7 +4,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import type { Letter } from "./letters.ts";
-import { callClaude } from "./llm.ts";
+import { callLLM } from "./llm.ts";
 
 export type EventKind = "event" | "deadline" | "reminder";
 
@@ -80,7 +80,7 @@ export async function extractEvents(
   const prior = earlier.length
     ? `Entries from earlier letters:\n${earlier.map((e) => `- id ${e.id}: ${e.date} [${e.kind}] ${e.title}`).join("\n")}\n\n`
     : "";
-  const { toolInput } = await callClaude({
+  const { toolInput } = await callLLM({
     system: SYSTEM,
     user: `${prior}Letter sent on ${letter.sentDate} (${weekday(letter.sentDate)}).\n\n<letter>\n${letter.text}\n</letter>`,
     tool: TOOL,

@@ -15,11 +15,14 @@ process.env.ANTHROPIC_API_KEY = "test-key";
 
 // Fake model: returns what a good extraction would for each sample letter.
 // For the update letter it "replaces" whichever earlier ids it was shown.
+// It answers in whichever API format the request was sent to.
 let calls: string[] = [];
-globalThis.fetch = (async (_url: string, init: any) => {
+let requests: { url: string; body: any; headers: any }[] = [];
+globalThis.fetch = (async (url: string, init: any) => {
   const body = JSON.parse(init.body);
-  const user: string = body.messages[0].content;
+  const user: string = body.messages.find((m: any) => m.role === "user").content;
   calls.push(user);
+  requests.push({ url, body, headers: init.headers });
   let input: any = { events: [] };
   if (user.includes("UPDATE: Year 3 Museum Excursion moved")) {
     const ids = [...user.matchAll(/id (\w+): [\d-]+ \[\w+\] (Year 3 excursion|Year 3 excursion payment and permission slip)/g)].map((m) => m[1]);
@@ -48,7 +51,10 @@ globalThis.fetch = (async (_url: string, init: any) => {
       ],
     };
   }
-  return new Response(JSON.stringify({ content: [{ type: "tool_use", name: "record_events", input }] }), { status: 200 });
+  const reply = url.includes("openai")
+    ? { choices: [{ message: { content: null, tool_calls: [{ type: "function", function: { name: "record_events", arguments: JSON.stringify(input) } }] } }] }
+    : { content: [{ type: "tool_use", name: "record_events", input }] };
+  return new Response(JSON.stringify(reply), { status: 200 });
 }) as typeof fetch;
 
 test("retrieval ranks the newer update letter first for an excursion question", () => {
@@ -109,4 +115,27 @@ test("ICS output has alerts for active entries and cancels moved ones", async ()
 
   // Multi-day all-day event: DTEND is the day after the last day.
   assert.match(ev("SUMMARY:Book Fair"), /DTEND;VALUE=DATE:20261030/);
+});
+
+test("OpenAI provider sends a forced function call and gives the same events", async () => {
+  const letters = loadLetters(LETTERS);
+  const claude = await syncEvents(letters, join(mkdtempSync(join(tmpdir(), "slr-")), "cache.json"), () => {});
+
+  process.env.LLM_PROVIDER = "openai";
+  process.env.OPENAI_API_KEY = "test-openai-key";
+  try {
+    requests = [];
+    const openai = await syncEvents(letters, join(mkdtempSync(join(tmpdir(), "slr-")), "cache.json"), () => {});
+    assert.deepEqual(openai, claude);
+
+    const r = requests[0];
+    assert.match(r.url, /api\.openai\.com\/v1\/chat\/completions$/);
+    assert.equal(r.headers.authorization, "Bearer test-openai-key");
+    assert.equal(r.body.messages[0].role, "system");
+    assert.deepEqual(r.body.tool_choice, { type: "function", function: { name: "record_events" } });
+    assert.equal(r.body.tools[0].function.name, "record_events");
+  } finally {
+    delete process.env.LLM_PROVIDER;
+    delete process.env.OPENAI_API_KEY;
+  }
 });

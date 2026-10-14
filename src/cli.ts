@@ -10,7 +10,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadLetters, chunkLetter } from "./letters.ts";
 import { BM25Retriever } from "./retrieve.ts";
-import { callClaude, hasApiKey } from "./llm.ts";
+import { callLLM, hasApiKey, apiKeyName } from "./llm.ts";
 import { syncEvents, applyReplacements, type SchoolEvent } from "./events.ts";
 import { toICS } from "./ics.ts";
 
@@ -52,12 +52,12 @@ async function ask(question: string) {
     : "";
 
   if (!hasApiKey()) {
-    console.log("No ANTHROPIC_API_KEY set, so here are the retrieved excerpts only:\n");
+    console.log(`No ${apiKeyName()} set, so here are the retrieved excerpts only:\n`);
     console.log(context || "(nothing matched)");
     return;
   }
 
-  const { text } = await callClaude({
+  const { text } = await callLLM({
     system: `You help a parent keep track of letters from their child's school.
 Today is ${today()}. Answer only from the excerpts and known dates provided.
 If letters conflict, prefer the most recently sent one and say a date changed.
@@ -71,7 +71,7 @@ Cite the letter file name in brackets after each fact, e.g. [2026-10-12-excursio
 }
 
 async function sync() {
-  if (!hasApiKey()) throw new Error("sync needs ANTHROPIC_API_KEY (see README).");
+  if (!hasApiKey()) throw new Error(`sync needs ${apiKeyName()} (see README).`);
   const letters = loadLetters(LETTERS);
   console.log(`Reading ${letters.length} letter(s) from ${LETTERS}`);
   const events = await syncEvents(letters, CACHE);
