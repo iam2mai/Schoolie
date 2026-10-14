@@ -15,7 +15,8 @@ uniform [2026-10-05-year3-excursion.txt]. Payment ($28) and the permission
 slip are due Wednesday 21 October [2026-10-12-excursion-update.txt].
 ```
 
-No dependencies: plain TypeScript run directly by Node 22.18+.
+No runtime dependencies: plain TypeScript run directly by Node 22.18+. Jest is
+used for tests only.
 
 ## How it works
 
@@ -52,6 +53,7 @@ showing both.
 
 ```bash
 cp .env.example .env      # add ANTHROPIC_API_KEY or OPENAI_API_KEY
+npm install               # test tools only (Jest)
 npm test                  # offline tests, API stubbed
 npm run search -- "excursion"   # retrieval only, works without a key
 npm run sync              # extract dates -> out/school-letters.ics
@@ -121,6 +123,18 @@ Default alerts (change `DEFAULT_ALERTS` in `src/ics.ts`):
 To run the sync automatically, schedule `npm run sync` with `launchd` (or
 `cron`) on your Mac.
 
+## Tests
+
+Tests use Jest, running the TypeScript as native ES modules (SWC strips the
+types). The LLM APIs are always stubbed, so tests run offline and free.
+
+```bash
+npm test                  # all tests
+npm run test:watch        # re-run on save
+npm run test:coverage     # coverage report in coverage/
+npx jest test/ics.test.ts # one file (prefix with NODE_OPTIONS=--experimental-vm-modules)
+```
+
 ## Project layout
 
 ```
@@ -130,7 +144,7 @@ src/llm.ts        Claude or OpenAI via fetch, optional forced tool call
 src/events.ts     date extraction prompt + schema, cache, replacement logic
 src/ics.ts        iCalendar writer with VALARMs, RFC 5545 escaping and folding
 src/cli.ts        ask / sync / upcoming / search
-test/             end-to-end tests with a stubbed API
+test/             Jest unit tests per module, plus pipeline.test.ts end to end
 ```
 
 ## Next steps

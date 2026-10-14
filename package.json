@@ -12,9 +12,15 @@
     "sync": "node src/cli.ts sync",
     "upcoming": "node src/cli.ts upcoming",
     "search": "node src/cli.ts search",
-    "test": "node --test test/*.test.ts"
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
+    "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage"
   },
   "devDependencies": {
-    "@types/node": "^26.6.5"
+    "@jest/globals": "^30.5.2",
+    "@swc/core": "^1.16.18",
+    "@swc/jest": "^0.2.39",
+    "@types/node": "^26.6.5",
+    "jest": "^30.5.2"
   }
 }
