@@ -1,0 +1,15 @@
+{
+  "name": "school-letters-rag",
+  "version": "0.1.0",
+  "description": "Ask questions about your child's school letters and sync their dates to your calendar.",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=22.18" },
+  "scripts": {
+    "ask": "node src/cli.ts ask",
+    "sync": "node src/cli.ts sync",
+    "upcoming": "node src/cli.ts upcoming",
+    "search": "node src/cli.ts search",
+    "test": "node --test test/*.test.ts"
+  }
+}
