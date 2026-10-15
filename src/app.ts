@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from "
 import { join, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadLetters, chunkLetter, type Letter } from "./letters.ts";
-import { makeRetriever } from "./semantic.ts";
+import { makeRetriever, indexingEnabled, indexLetter, removeLetter, reindexAll } from "./semantic.ts";
 import { callLLM, hasApiKey } from "./llm.ts";
 import { syncEvents, applyReplacements, type SchoolEvent } from "./events.ts";
 import { toICS } from "./ics.ts";
@@ -136,6 +136,30 @@ export function deleteLetter(p: Paths, id: string): void {
   // like "../.env" can never reach outside it.
   if (id !== basename(id) || !loadLetters(p.letters).some((l) => l.id === id)) throw new UserError("No such letter.", 404);
   unlinkSync(join(p.letters, id));
+}
+
+// --- keeping the semantic index in step ---------------------------------------
+// Each of these no-ops in keyword mode, so callers can invoke them
+// unconditionally after saving or deleting a letter.
+
+// Index a just-saved letter's chunks into the vector store.
+export async function indexSavedLetter(p: Paths, id: string, env = process.env): Promise<void> {
+  if (!indexingEnabled(env)) return;
+  const letter = loadLetters(p.letters).find((l) => l.id === id);
+  if (letter) await indexLetter(chunkLetter(letter), env);
+}
+
+// Drop a just-deleted letter's chunks from the vector store.
+export async function unindexLetter(id: string, env = process.env): Promise<void> {
+  if (!indexingEnabled(env)) return;
+  await removeLetter(id, env);
+}
+
+// Index every current letter (a one-off after switching semantic search on).
+// Returns the number of chunks indexed, or 0 in keyword mode.
+export async function reindex(p: Paths, env = process.env): Promise<number> {
+  if (!indexingEnabled(env)) return 0;
+  return reindexAll(loadLetters(p.letters).flatMap((l) => chunkLetter(l)), env);
 }
 
 // An error whose message is safe to show to the user.

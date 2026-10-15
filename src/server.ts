@@ -15,7 +15,7 @@ import { hasApiKey } from "./llm.ts";
 import { toICS } from "./ics.ts";
 import {
   ROOT, paths, ask, sync, upcoming, cachedEvents, listLetters, saveLetter, deleteLetter, calendarName,
-  UserError, type Paths,
+  indexSavedLetter, unindexLetter, UserError, type Paths,
 } from "./app.ts";
 
 export interface ServerOptions {
@@ -151,12 +151,15 @@ export function createAppServer(opts: ServerOptions): Server {
       if (sentDate !== undefined && typeof sentDate !== "string") throw new UserError("Sent date must be YYYY-MM-DD.");
       const id = saveLetter(p, { text, sentDate });
       log(`saved letter ${id}`);
+      await indexQuietly(() => indexSavedLetter(p, id));
       return json(res, 201, { id, ...(await syncQuietly()) });
     }
 
     const del = path.match(/^\/api\/letters\/([^/]+)$/);
     if (method === "DELETE" && del) {
-      deleteLetter(p, decodeURIComponent(del[1]));
+      const id = decodeURIComponent(del[1]);
+      deleteLetter(p, id);
+      await indexQuietly(() => unindexLetter(id));
       return json(res, 200, { ok: true, ...(await syncQuietly()) });
     }
 
@@ -168,6 +171,17 @@ export function createAppServer(opts: ServerOptions): Server {
     if (method === "POST" && path === "/api/sync") return json(res, 200, await syncQuietly());
 
     return json(res, 404, { error: "Not found." });
+  }
+
+  // Keep the semantic index in step after a save or delete. Like syncQuietly,
+  // a failure (no Pinecone key, API down) is logged but doesn't undo the
+  // change on disk; in keyword mode this does nothing.
+  async function indexQuietly(fn: () => Promise<void>): Promise<void> {
+    try {
+      await fn();
+    } catch (err: any) {
+      log(`indexing failed: ${err.message}`);
+    }
   }
 
   // After adding or removing a letter, refresh the dates. A failure here
