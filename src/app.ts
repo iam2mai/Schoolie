@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from "
 import { join, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadLetters, chunkLetter, type Letter } from "./letters.ts";
-import { BM25Retriever } from "./retrieve.ts";
+import { makeRetriever } from "./semantic.ts";
 import { callLLM, hasApiKey } from "./llm.ts";
 import { syncEvents, applyReplacements, type SchoolEvent } from "./events.ts";
 import { toICS } from "./ics.ts";
@@ -50,7 +50,7 @@ export interface Answer { answer?: string; sources: Source[] }
 // answer from them. Without a key, only the sources are returned.
 export async function ask(p: Paths, question: string): Promise<Answer> {
   const letters = loadLetters(p.letters);
-  const hits = await new BM25Retriever(letters.flatMap((l) => chunkLetter(l))).retrieve(question, 6);
+  const hits = await makeRetriever(letters.flatMap((l) => chunkLetter(l))).retrieve(question, 6);
   const sources = hits.map((h) => ({ letterId: h.chunk.letterId, sentDate: h.chunk.sentDate, text: h.chunk.text }));
   if (!hasApiKey()) return { sources };
 
