@@ -11,14 +11,19 @@
 
 import type { Chunk } from "./letters.ts";
 import { BM25Retriever, type Hit, type Retriever } from "./retrieve.ts";
+import {
+  SEARCH_MODES, DEFAULT_SEARCH_MODE, type SearchMode,
+  EMBEDDINGS_PROVIDERS, DEFAULT_EMBEDDINGS_PROVIDER, EMBEDDINGS_KEY_VAR, type EmbeddingsProvider,
+  DEFAULT_OPENAI_EMBEDDING_MODEL, DEFAULT_VOYAGE_EMBEDDING_MODEL, DEFAULT_PINECONE_INDEX,
+} from "./constants.ts";
 
-export type SearchMode = "keyword" | "semantic" | "hybrid";
+export type { SearchMode, EmbeddingsProvider };
 
 export function searchMode(env = process.env): SearchMode {
   const m = env.SEARCH_MODE?.trim().toLowerCase();
-  if (m === "semantic" || m === "hybrid" || m === "keyword") return m;
-  if (m) throw new Error(`Unknown SEARCH_MODE "${m}". Use "keyword", "semantic" or "hybrid".`);
-  return "keyword";
+  if ((SEARCH_MODES as readonly string[]).includes(m ?? "")) return m as SearchMode;
+  if (m) throw new Error(`Unknown SEARCH_MODE "${m}". Use ${SEARCH_MODES.join(", ")}.`);
+  return DEFAULT_SEARCH_MODE;
 }
 
 // --- embeddings ---------------------------------------------------------------
@@ -26,18 +31,16 @@ export function searchMode(env = process.env): SearchMode {
 // when EMBEDDINGS_PROVIDER=voyage. Voyage needs @langchain/community installed
 // separately (it conflicts with other peer deps, so it's not a default dep).
 
-export type EmbeddingsProvider = "openai" | "voyage";
-
 export function embeddingsProvider(env = process.env): EmbeddingsProvider {
   const p = env.EMBEDDINGS_PROVIDER?.trim().toLowerCase();
-  if (p === "openai" || p === "voyage") return p;
-  if (p) throw new Error(`Unknown EMBEDDINGS_PROVIDER "${p}". Use "openai" or "voyage".`);
-  return "openai";
+  if ((EMBEDDINGS_PROVIDERS as readonly string[]).includes(p ?? "")) return p as EmbeddingsProvider;
+  if (p) throw new Error(`Unknown EMBEDDINGS_PROVIDER "${p}". Use ${EMBEDDINGS_PROVIDERS.join(", ")}.`);
+  return DEFAULT_EMBEDDINGS_PROVIDER;
 }
 
 // The env var that must hold the embedding provider's API key.
 export function embeddingsKeyName(env = process.env): string {
-  return embeddingsProvider(env) === "voyage" ? "VOYAGE_API_KEY" : "OPENAI_API_KEY";
+  return EMBEDDINGS_KEY_VAR[embeddingsProvider(env)];
 }
 
 async function makeEmbeddings(env = process.env) {
@@ -49,10 +52,10 @@ async function makeEmbeddings(env = process.env) {
     // package (install it with: npm i @langchain/community).
     const voyageModule = "@langchain/community/embeddings/voyage";
     const { VoyageEmbeddings } = await import(voyageModule);
-    return new VoyageEmbeddings({ apiKey, modelName: env.VOYAGE_MODEL ?? "voyage-3" });
+    return new VoyageEmbeddings({ apiKey, modelName: env.VOYAGE_MODEL ?? DEFAULT_VOYAGE_EMBEDDING_MODEL });
   }
   const { OpenAIEmbeddings } = await import("@langchain/openai");
-  return new OpenAIEmbeddings({ apiKey, model: env.EMBEDDINGS_MODEL ?? "text-embedding-3-small" });
+  return new OpenAIEmbeddings({ apiKey, model: env.EMBEDDINGS_MODEL ?? DEFAULT_OPENAI_EMBEDDING_MODEL });
 }
 
 // --- Pinecone store -----------------------------------------------------------
@@ -62,7 +65,7 @@ async function makeEmbeddings(env = process.env) {
 export async function makeStore(env = process.env) {
   const apiKey = env.PINECONE_API_KEY;
   if (!apiKey) throw new Error('PINECONE_API_KEY is not set. Add it to .env (see README "Semantic search").');
-  const indexName = env.PINECONE_INDEX ?? "school-letters";
+  const indexName = env.PINECONE_INDEX ?? DEFAULT_PINECONE_INDEX;
 
   const { Pinecone } = await import("@pinecone-database/pinecone");
   const { PineconeStore } = await import("@langchain/pinecone");
