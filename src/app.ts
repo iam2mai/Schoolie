@@ -50,7 +50,7 @@ export interface Answer { answer?: string; sources: Source[] }
 // answer from them. Without a key, only the sources are returned.
 export async function ask(p: Paths, question: string): Promise<Answer> {
   const letters = loadLetters(p.letters);
-  const hits = new BM25Retriever(letters.flatMap((l) => chunkLetter(l))).search(question, 6);
+  const hits = await new BM25Retriever(letters.flatMap((l) => chunkLetter(l))).retrieve(question, 6);
   const sources = hits.map((h) => ({ letterId: h.chunk.letterId, sentDate: h.chunk.sentDate, text: h.chunk.text }));
   if (!hasApiKey()) return { sources };
 
