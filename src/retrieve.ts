@@ -9,8 +9,10 @@ import type { Chunk } from "./letters.ts";
 
 export interface Hit { chunk: Chunk; score: number }
 
+// Retrieval may hit the network (embeddings, a vector database), so the shared
+// interface is async. BM25 answers instantly; semantic and hybrid won't.
 export interface Retriever {
-  search(query: string, k?: number): Hit[];
+  retrieve(query: string, k?: number): Promise<Hit[]>;
 }
 
 const STOP = new Set(
@@ -46,6 +48,12 @@ export class BM25Retriever implements Retriever {
     this.avgLen = this.docs.reduce((s, d) => s + d.len, 0) / Math.max(1, this.docs.length);
   }
 
+  retrieve(query: string, k = 5): Promise<Hit[]> {
+    return Promise.resolve(this.search(query, k));
+  }
+
+  // Synchronous keyword ranking. `retrieve` wraps this to satisfy the async
+  // Retriever interface; callers inside this package may use it directly.
   search(query: string, k = 5): Hit[] {
     const N = this.docs.length;
     const terms = [...new Set(tokenize(query))];
