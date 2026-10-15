@@ -138,6 +138,19 @@ describe("login", () => {
     expect(res.status).toBe(429);
   });
 
+  test("a spoofed X-Forwarded-For can't dodge the rate limit behind a trusted proxy", async () => {
+    await new Promise((r) => server.close(r));
+    await start({ trustProxy: true });
+    // The attacker forges a fresh leading address on every guess; the proxy
+    // appends the real client IP at the end, which is what must be counted.
+    for (let i = 0; i < 10; i++) {
+      const res = await req("/api/login", { method: "POST", body: { password: "wrong" }, headers: { "x-forwarded-for": `10.0.0.${i}, 203.0.113.9` } });
+      expect(res.status).toBe(401);
+    }
+    const blocked = await req("/api/login", { method: "POST", body: { password: PASSWORD }, headers: { "x-forwarded-for": "10.9.9.9, 203.0.113.9" } });
+    expect(blocked.status).toBe(429);
+  });
+
   test("logout clears the cookie", async () => {
     const res = await req("/api/logout", { method: "POST", body: {} });
     expect(res.headers.get("set-cookie")).toMatch(/^sid=; .*Max-Age=0/);

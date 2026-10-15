@@ -61,8 +61,16 @@ export function createAppServer(opts: ServerOptions): Server {
   const isHttps = (req: IncomingMessage) =>
     (req.socket as any).encrypted === true || (opts.trustProxy === true && req.headers["x-forwarded-proto"] === "https");
 
-  const clientIp = (req: IncomingMessage) =>
-    (opts.trustProxy && String(req.headers["x-forwarded-for"] ?? "").split(",")[0].trim()) || req.socket.remoteAddress || "unknown";
+  // X-Forwarded-For is a list the proxy appends the real client IP to the end
+  // of. Take the LAST entry: a client can forge earlier ones (defeating the
+  // login rate limit), but can't push anything past what our own proxy adds.
+  const clientIp = (req: IncomingMessage) => {
+    if (opts.trustProxy) {
+      const xff = String(req.headers["x-forwarded-for"] ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+      if (xff.length) return xff[xff.length - 1];
+    }
+    return req.socket.remoteAddress || "unknown";
+  };
 
   function sessionCookie(req: IncomingMessage, value: string, maxAge: number): string {
     return `sid=${value}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAge}${isHttps(req) ? "; Secure" : ""}`;
