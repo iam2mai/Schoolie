@@ -5,6 +5,7 @@
 //   node src/cli.ts upcoming      list the next few weeks of dates
 //   node src/cli.ts search "hat"  retrieval only (no API key needed)
 //   node src/cli.ts reindex        load every letter into the vector index
+//   node src/cli.ts compare "hat"  keyword vs semantic vs hybrid, side by side
 //
 // The website (src/server.ts) offers the same things in a browser.
 
@@ -12,7 +13,7 @@ import { join } from "node:path";
 import { loadLetters, chunkLetter } from "./letters.ts";
 import { BM25Retriever } from "./retrieve.ts";
 import { hasApiKey, apiKeyName } from "./llm.ts";
-import { ROOT, paths, ask, sync, upcoming, cachedEvents, formatEvent, reindex } from "./app.ts";
+import { ROOT, paths, ask, sync, upcoming, cachedEvents, formatEvent, reindex, compareRetrieval } from "./app.ts";
 import { indexingEnabled } from "./semantic.ts";
 import type { SchoolEvent } from "./events.ts";
 
@@ -28,6 +29,25 @@ function search(query: string) {
   const hits = new BM25Retriever(loadLetters(p.letters).flatMap((l) => chunkLetter(l))).search(query, 5);
   for (const h of hits) console.log(`--- ${h.chunk.id}  score ${h.score.toFixed(2)}\n${h.chunk.text}\n`);
   if (!hits.length) console.log("(nothing matched)");
+}
+
+async function compare(query: string) {
+  console.log(`Comparing search modes for: "${query}"\n`);
+  for (const { mode, hits, error } of await compareRetrieval(p, query, 5)) {
+    if (error) {
+      console.log(`${mode}:  (unavailable: ${error})\n`);
+    } else if (!hits?.length) {
+      console.log(`${mode}:  (nothing matched)\n`);
+    } else {
+      console.log(`${mode}:`);
+      hits.forEach((h, i) => {
+        const snippet = h.chunk.text.replace(/\s+/g, " ").trim().slice(0, 80);
+        console.log(`  ${i + 1}. [${h.chunk.id}]  score ${h.score.toFixed(3)}\n     ${snippet}`);
+      });
+      console.log("");
+    }
+  }
+  if (!indexingEnabled()) console.log("Tip: set SEARCH_MODE=hybrid and the keys (see README), then run reindex, to fill in the semantic and hybrid columns.");
 }
 
 const [cmd, ...rest] = process.argv.slice(2);
@@ -48,6 +68,7 @@ try {
     printUpcoming(events);
   } else if (cmd === "upcoming") printUpcoming(cachedEvents(p));
   else if (cmd === "search" && arg) search(arg);
+  else if (cmd === "compare" && arg) await compare(arg);
   else if (cmd === "reindex") {
     if (!indexingEnabled()) throw new Error('reindex needs SEARCH_MODE=semantic or hybrid (see README "Semantic search").');
     console.log(`Indexing ${loadLetters(p.letters).length} letter(s) from ${p.letters}...`);
@@ -58,6 +79,7 @@ try {
   npm run sync
   npm run upcoming
   npm run search -- "keywords"
+  npm run compare -- "keywords"
   npm run reindex
   npm start                      (website)`);
 } catch (err: any) {
