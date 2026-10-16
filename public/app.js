@@ -108,8 +108,10 @@ $("ask-form").addEventListener("submit", async (e) => {
   const card = el("article", { className: "card qa" }, el("p", { className: "q", textContent: question }), answer);
   $("answers").prepend(card);
   $("question").value = "";
-  const button = e.submitter;
-  button.disabled = true;
+  // e.submitter is null when the form is submitted via the Enter key, so fall
+  // back to the form's button rather than throwing before the request is sent.
+  const button = e.submitter ?? e.currentTarget.querySelector("button");
+  if (button) button.disabled = true;
   try {
     const res = await api("/api/ask", { method: "POST", body: { question } });
     answer.classList.remove("muted");
@@ -124,7 +126,7 @@ $("ask-form").addEventListener("submit", async (e) => {
     answer.className = "answer error";
     answer.textContent = err.message;
   } finally {
-    button.disabled = false;
+    if (button) button.disabled = false;
   }
 });
 
@@ -231,8 +233,8 @@ $("letter-file").addEventListener("change", async (e) => {
 $("letter-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const status = $("letter-status");
-  const button = e.submitter;
-  button.disabled = true;
+  const button = e.submitter ?? e.currentTarget.querySelector("button");
+  if (button) button.disabled = true;
   status.className = "muted";
   status.textContent = "Saving and reading dates…";
   try {
@@ -246,7 +248,7 @@ $("letter-form").addEventListener("submit", async (e) => {
     status.className = "error";
     status.textContent = err.message;
   } finally {
-    button.disabled = false;
+    if (button) button.disabled = false;
   }
 });
 
