@@ -5,6 +5,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from "
 import { join, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadLetters, chunkLetter, type Letter } from "./letters.ts";
+import type { Hit } from "./retrieve.ts";
+import { SEARCH_MODES, type SearchMode } from "./constants.ts";
 import { makeRetriever, indexingEnabled, indexLetter, removeLetter, reindexAll } from "./semantic.ts";
 import { callLLM, hasApiKey } from "./llm.ts";
 import { syncEvents, applyReplacements, type SchoolEvent } from "./events.ts";
@@ -160,6 +162,26 @@ export async function unindexLetter(id: string, env = process.env): Promise<void
 export async function reindex(p: Paths, env = process.env): Promise<number> {
   if (!indexingEnabled(env)) return 0;
   return reindexAll(loadLetters(p.letters).flatMap((l) => chunkLetter(l)), env);
+}
+
+// --- comparing the search modes -----------------------------------------------
+
+export interface ModeComparison { mode: SearchMode; hits: Hit[] | null; error: string | null }
+
+// Run the same question through keyword, semantic and hybrid retrieval so the
+// results can be eyeballed side by side. A mode that can't run (e.g. semantic
+// without keys or an empty index) returns its error rather than throwing, so
+// one missing key doesn't hide the keyword results.
+export function compareRetrieval(p: Paths, question: string, k = 6, env = process.env): Promise<ModeComparison[]> {
+  const chunks = loadLetters(p.letters).flatMap((l) => chunkLetter(l));
+  return Promise.all(SEARCH_MODES.map(async (mode): Promise<ModeComparison> => {
+    try {
+      const hits = await makeRetriever(chunks, { ...env, SEARCH_MODE: mode }).retrieve(question, k);
+      return { mode, hits, error: null };
+    } catch (err: any) {
+      return { mode, hits: null, error: err.message };
+    }
+  }));
 }
 
 // An error whose message is safe to show to the user.

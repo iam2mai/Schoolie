@@ -35,7 +35,8 @@ There are two paths, because they suit different jobs:
 - **`ask`** is classic RAG. Letters are split into paragraph chunks, ranked with
   BM25 keyword search (plus a small boost for newer letters), and the top
   excerpts go to Claude with instructions to answer only from them and cite the
-  letter.
+  letter. Retrieval is keyword-only by default, but can be switched to
+  meaning-based or a blend of the two — see [Semantic search](#semantic-search).
 - **`sync`** is structured extraction. Each letter is read once by Claude
   using a forced tool call, which returns clean JSON (title, date, time,
   things to do). Results are cached by content hash, so only new or edited
@@ -139,6 +140,58 @@ The events cache is keyed by letter content, not by provider, so switching
 providers doesn't re-extract letters you've already synced. Delete
 `out/events-cache.json` to redo them with the new model.
 
+## Semantic search
+
+By default, `ask` and `search` find letters by **keyword** (BM25): fast, free,
+no account needed, but it misses letters that use different words from your
+question ("costume" vs "dress up"). You can switch to **semantic** search, which
+matches by meaning using embeddings and a cloud vector database, or **hybrid**,
+which blends both and is the recommended setting once it's turned on.
+
+`SEARCH_MODE` in `.env` picks the mode:
+
+| Mode | What it does | Needs keys? |
+| --- | --- | --- |
+| `keyword` | Word matching only (the default) | No |
+| `semantic` | Meaning-based only | Yes |
+| `hybrid` | Both, blended with Reciprocal Rank Fusion | Yes |
+
+**Turning it on:**
+
+1. Get an [OpenAI](https://platform.openai.com) key (for embeddings) and a
+   [Pinecone](https://pinecone.io) key (free Starter tier). In the Pinecone
+   console, create a **serverless** index — dimension **1536**, metric
+   **cosine** — and note its name.
+2. Fill in `.env`:
+   ```bash
+   SEARCH_MODE=hybrid
+   OPENAI_API_KEY=sk-...
+   PINECONE_API_KEY=...
+   PINECONE_INDEX=school-letters      # match the index you created
+   ```
+3. Load your existing letters into the index (a one-off; new uploads and
+   deletes keep themselves in step after this):
+   ```bash
+   npm run reindex
+   ```
+
+That's it — `ask`, `search` and the website now use semantic/hybrid retrieval.
+Switch back any time by setting `SEARCH_MODE=keyword` (or removing it); the
+keyword path never touches the network or needs the keys.
+
+**Seeing the difference.** `compare` runs the same question through all three
+modes side by side, so you can judge which suits your letters:
+
+```bash
+npm run compare -- "what should my child dress up as"
+```
+
+The LangChain packages that power this load only when a semantic or hybrid mode
+is selected, so the default keyword install stays dependency-light at runtime.
+To use [Voyage AI](https://voyageai.com) embeddings instead of OpenAI, set
+`EMBEDDINGS_PROVIDER=voyage` and `VOYAGE_API_KEY`, and install the extra package
+with `npm i @langchain/community` (see `.env.example`).
+
 ## Adding letters
 
 Save each letter as a `.txt` or `.md` file in `letters/` (or set `LETTERS_DIR`
@@ -194,23 +247,27 @@ npx jest test/ics.test.ts # one file (prefix with NODE_OPTIONS=--experimental-vm
 ```
 src/letters.ts    load letters, read "Date:" header, paragraph chunking
 src/retrieve.ts   BM25 retriever behind a small Retriever interface
+src/semantic.ts   embeddings + Pinecone retrievers, hybrid fusion, index upkeep
+src/constants.ts  search modes, embedding providers and their defaults
 src/llm.ts        Claude or OpenAI via fetch, optional forced tool call
 src/events.ts     date extraction prompt + schema, cache, replacement logic
 src/ics.ts        iCalendar writer with VALARMs, RFC 5545 escaping and folding
 src/app.ts        ask, sync, upcoming, save/list/delete letters (shared by CLI and website)
 src/server.ts     website: node:http server, login, JSON API, calendar feed
 public/           the web page (plain HTML, CSS and JS, no build step)
-src/cli.ts        ask / sync / upcoming / search
+src/cli.ts        ask / sync / upcoming / search / compare / reindex
 test/             Jest unit tests per module, plus pipeline.test.ts end to end
 ```
 
 ## Next steps
 
-- **Embeddings.** Implement `Retriever` with an embedding model (for example
-  Voyage AI, or a local model via transformers.js) and combine it with BM25
-  scores (hybrid search). This helps with questions that use different words
-  from the letter, such as "costume" vs "dress up".
+- **Embeddings — done.** Semantic and hybrid retrieval are built in; see
+  [Semantic search](#semantic-search). Hybrid blends BM25 and embedding ranks,
+  which helps with questions that use different words from the letter, such as
+  "costume" vs "dress up".
 - **Evals.** Write 20 or so question/expected-answer pairs from real letters
-  and check retrieval hit rate and answer correctness after each change.
-- **Storage.** Swap the in-memory index for SQLite (with `sqlite-vec` for
-  embeddings) once you have hundreds of letters.
+  and check retrieval hit rate and answer correctness after each change. The
+  `compare` command is a manual first step toward this.
+- **Prune on reindex.** `reindex` adds and overwrites but doesn't remove
+  vectors for letters deleted while it wasn't running; a full rebuild (clear
+  the index first) would close that gap.

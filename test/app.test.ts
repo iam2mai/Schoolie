@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach, afterEach, jest } from "@jest/globa
 import { mkdtempSync, readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { paths, saveLetter, deleteLetter, listLetters, upcoming, ask, sync, today, indexSavedLetter, unindexLetter, reindex, UserError, type Paths } from "../src/app.ts";
+import { paths, saveLetter, deleteLetter, listLetters, upcoming, ask, sync, today, indexSavedLetter, unindexLetter, reindex, compareRetrieval, UserError, type Paths } from "../src/app.ts";
 import type { SchoolEvent } from "../src/events.ts";
 
 const savedEnv = { ...process.env };
@@ -124,6 +124,22 @@ describe("keeping the semantic index in step", () => {
     const env = { SEARCH_MODE: "semantic", OPENAI_API_KEY: "test" };
     await expect(reindex(p, env)).rejects.toThrow(/PINECONE_API_KEY/);
     await expect(unindexLetter("2026-10-01-notice.txt", env)).rejects.toThrow(/PINECONE_API_KEY/);
+  });
+});
+
+describe("compareRetrieval", () => {
+  test("runs all three modes; keyword returns hits, semantic/hybrid report the missing key", async () => {
+    saveLetter(p, { text: "Year 3 Excursion\n\nBring a hat.", sentDate: "2026-10-12" });
+    const byMode = Object.fromEntries((await compareRetrieval(p, "excursion", 3, {})).map((r) => [r.mode, r]));
+    expect(Object.keys(byMode).sort()).toEqual(["hybrid", "keyword", "semantic"]);
+
+    expect(byMode.keyword.error).toBeNull();
+    expect(byMode.keyword.hits?.[0].chunk.letterId).toBe("2026-10-12-year-3-excursion.txt");
+
+    // No keys, so these fail — but as a captured error, not a thrown one.
+    expect(byMode.semantic.hits).toBeNull();
+    expect(byMode.semantic.error).toMatch(/PINECONE_API_KEY/);
+    expect(byMode.hybrid.error).toMatch(/PINECONE_API_KEY/);
   });
 });
 
