@@ -1,5 +1,5 @@
 import { describe, test, expect } from "@jest/globals";
-import { searchMode, embeddingsProvider, embeddingsKeyName, makeRetriever, fuse } from "../src/semantic.ts";
+import { searchMode, embeddingsProvider, embeddingsKeyName, makeRetriever, fuse, indexingEnabled } from "../src/semantic.ts";
 import { BM25Retriever, type Hit } from "../src/retrieve.ts";
 import type { Chunk } from "../src/letters.ts";
 
@@ -29,6 +29,15 @@ describe("embeddings provider", () => {
   });
   test("rejects an unknown provider", () => {
     expect(() => embeddingsProvider({ EMBEDDINGS_PROVIDER: "cohere" })).toThrow(/Unknown EMBEDDINGS_PROVIDER/);
+  });
+});
+
+describe("indexingEnabled", () => {
+  test("off in keyword mode (the default), on for semantic and hybrid", () => {
+    expect(indexingEnabled({})).toBe(false);
+    expect(indexingEnabled({ SEARCH_MODE: "keyword" })).toBe(false);
+    expect(indexingEnabled({ SEARCH_MODE: "semantic" })).toBe(true);
+    expect(indexingEnabled({ SEARCH_MODE: "hybrid" })).toBe(true);
   });
 });
 

@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach, afterEach, jest } from "@jest/globa
 import { mkdtempSync, readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { paths, saveLetter, deleteLetter, listLetters, upcoming, ask, sync, today, UserError, type Paths } from "../src/app.ts";
+import { paths, saveLetter, deleteLetter, listLetters, upcoming, ask, sync, today, indexSavedLetter, unindexLetter, reindex, UserError, type Paths } from "../src/app.ts";
 import type { SchoolEvent } from "../src/events.ts";
 
 const savedEnv = { ...process.env };
@@ -103,6 +103,27 @@ describe("deleteLetter", () => {
     expect(() => deleteLetter(p, "../out/secret.txt")).toThrow("No such letter.");
     expect(() => deleteLetter(p, "missing.txt")).toThrow("No such letter.");
     expect(existsSync(join(p.out, "secret.txt"))).toBe(true);
+  });
+});
+
+describe("keeping the semantic index in step", () => {
+  // These no-op in keyword mode without touching the network, so the default
+  // build never reaches Pinecone.
+  test("do nothing in keyword mode", async () => {
+    saveLetter(p, { text: "Notice\n\nBody", sentDate: "2026-10-01" });
+    await expect(indexSavedLetter(p, "2026-10-01-notice.txt", { SEARCH_MODE: "keyword" })).resolves.toBeUndefined();
+    await expect(unindexLetter("2026-10-01-notice.txt", { SEARCH_MODE: "keyword" })).resolves.toBeUndefined();
+    await expect(reindex(p, { SEARCH_MODE: "keyword" })).resolves.toBe(0);
+    await expect(reindex(p, {})).resolves.toBe(0); // unset defaults to keyword
+  });
+
+  // In semantic mode they run, so without a Pinecone key they fail loudly
+  // rather than silently skipping — proving the guard is mode-gated.
+  test("in semantic mode, require a Pinecone key", async () => {
+    saveLetter(p, { text: "Notice\n\nBody", sentDate: "2026-10-01" });
+    const env = { SEARCH_MODE: "semantic", OPENAI_API_KEY: "test" };
+    await expect(reindex(p, env)).rejects.toThrow(/PINECONE_API_KEY/);
+    await expect(unindexLetter("2026-10-01-notice.txt", env)).rejects.toThrow(/PINECONE_API_KEY/);
   });
 });
 

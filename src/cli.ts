@@ -4,6 +4,7 @@
 //   node src/cli.ts sync          extract dates from new letters -> out/school-letters.ics
 //   node src/cli.ts upcoming      list the next few weeks of dates
 //   node src/cli.ts search "hat"  retrieval only (no API key needed)
+//   node src/cli.ts reindex        load every letter into the vector index
 //
 // The website (src/server.ts) offers the same things in a browser.
 
@@ -11,7 +12,8 @@ import { join } from "node:path";
 import { loadLetters, chunkLetter } from "./letters.ts";
 import { BM25Retriever } from "./retrieve.ts";
 import { hasApiKey, apiKeyName } from "./llm.ts";
-import { ROOT, paths, ask, sync, upcoming, cachedEvents, formatEvent } from "./app.ts";
+import { ROOT, paths, ask, sync, upcoming, cachedEvents, formatEvent, reindex } from "./app.ts";
+import { indexingEnabled } from "./semantic.ts";
 import type { SchoolEvent } from "./events.ts";
 
 try { process.loadEnvFile(join(ROOT, ".env")); } catch { /* .env is optional */ }
@@ -46,11 +48,17 @@ try {
     printUpcoming(events);
   } else if (cmd === "upcoming") printUpcoming(cachedEvents(p));
   else if (cmd === "search" && arg) search(arg);
-  else console.log(`Usage:
+  else if (cmd === "reindex") {
+    if (!indexingEnabled()) throw new Error('reindex needs SEARCH_MODE=semantic or hybrid (see README "Semantic search").');
+    console.log(`Indexing ${loadLetters(p.letters).length} letter(s) from ${p.letters}...`);
+    const n = await reindex(p);
+    console.log(`Indexed ${n} chunk(s).`);
+  } else console.log(`Usage:
   npm run ask -- "your question"
   npm run sync
   npm run upcoming
   npm run search -- "keywords"
+  npm run reindex
   npm start                      (website)`);
 } catch (err: any) {
   console.error(`Error: ${err.message}`);

@@ -6,8 +6,8 @@
 // the LangChain packages load lazily, so the default keyword build never
 // touches the network and the offline tests stay offline.
 //
-// Phase 2 covers the read path (querying the index). Writing letters into the
-// index lands in Phase 3; until then, semantic/hybrid query whatever is there.
+// Phase 2 covers the read path (querying the index). Phase 3 adds the write
+// path below: keeping the index in step as letters are uploaded and deleted.
 
 import type { Chunk } from "./letters.ts";
 import { BM25Retriever, type Hit, type Retriever } from "./retrieve.ts";
@@ -129,6 +129,60 @@ export function makeRetriever(chunks: Chunk[], env = process.env): Retriever {
   if (mode === "keyword") return keyword;
   const semantic = new SemanticRetriever(env);
   return mode === "semantic" ? semantic : new HybridRetriever(keyword, semantic);
+}
+
+// --- write path ---------------------------------------------------------------
+// Keep the Pinecone index in step with the letters folder: index a letter's
+// chunks on upload, drop them on delete, and reindex everything on demand.
+// Callers guard these with indexingEnabled(), so the keyword build never runs
+// them and never needs Pinecone.
+
+// True when the index should be maintained, i.e. SEARCH_MODE is semantic or
+// hybrid. In keyword mode every write-path call is skipped.
+export function indexingEnabled(env = process.env): boolean {
+  return searchMode(env) !== "keyword";
+}
+
+// A school letter is a handful of ~600-char chunks at most; this caps the ids
+// we try to delete for a letter whose file is already gone. Pinecone ignores
+// ids that aren't in the index, so an over-estimate is harmless.
+const MAX_CHUNKS_PER_LETTER = 256;
+
+async function toDocuments(chunks: Chunk[]) {
+  const { Document } = await import("@langchain/core/documents");
+  return chunks.map((c) => new Document({
+    pageContent: c.text,
+    metadata: { id: c.id, letterId: c.letterId, sentDate: c.sentDate },
+  }));
+}
+
+// Upsert chunks under their deterministic ids, so re-indexing the same letter
+// overwrites its vectors instead of duplicating them.
+async function upsert(chunks: Chunk[], env: NodeJS.ProcessEnv): Promise<void> {
+  if (!chunks.length) return;
+  const store = await makeStore(env);
+  await store.addDocuments(await toDocuments(chunks), { ids: chunks.map((c) => c.id) });
+}
+
+// Index (or re-index) one letter's chunks.
+export function indexLetter(chunks: Chunk[], env = process.env): Promise<void> {
+  return upsert(chunks, env);
+}
+
+// Remove one letter's chunks. The file is already gone by now, so we delete the
+// deterministic id range `${letterId}#0..N`; Pinecone no-ops missing ids.
+export async function removeLetter(letterId: string, env = process.env): Promise<void> {
+  const store = await makeStore(env);
+  const ids = Array.from({ length: MAX_CHUNKS_PER_LETTER }, (_, n) => `${letterId}#${n}`);
+  await store.delete({ ids });
+}
+
+// Load the index from the given chunks (all current letters); returns how many
+// were indexed. Used by the one-off `reindex` command after turning semantic
+// search on. It adds and overwrites but doesn't prune letters deleted earlier.
+export async function reindexAll(chunks: Chunk[], env = process.env): Promise<number> {
+  await upsert(chunks, env);
+  return chunks.length;
 }
 
 // Reciprocal Rank Fusion: each list contributes 1/(rrfK + rank) per chunk, so a
