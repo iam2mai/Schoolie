@@ -88,6 +88,7 @@ button {
 button:disabled { opacity: 0.6; cursor: wait; }
 button.secondary { background: var(--accent-soft); color: var(--text); }
 button.danger { background: none; color: var(--danger); padding: 6px 8px; font-weight: 500; }
+button.link { background: none; color: var(--muted); padding: 6px 8px; font-weight: 500; }
 
 header {
   position: sticky;
@@ -113,6 +114,11 @@ header nav a {
 header nav a[aria-current="page"] { background: var(--accent-soft); color: var(--text); }
 
 main { max-width: 760px; margin: 0 auto; padding: 16px; }
+
+/* --- login --- */
+.login { display: grid; place-items: center; padding: 32px 0; }
+.narrow { width: 100%; max-width: 360px; display: grid; gap: 10px; }
+.narrow h2 { margin: 0; }
 
 .notice {
   background: var(--deadline-soft);
