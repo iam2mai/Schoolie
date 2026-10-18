@@ -1,17 +1,19 @@
 import type { ReactNode } from "react";
+import Nav from "./nav.tsx";
 import "./globals.css";
 
 export const metadata = {
-  title: "School letters",
-  description: "Ask questions about your child's school letters.",
+  title: "School Letters",
+  description: "Ask questions about your child's school letters and track their dates.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <header className="site-header">
-          <h1>School letters</h1>
+        <header>
+          <h1>School Letters</h1>
+          <Nav />
         </header>
         <main>{children}</main>
       </body>

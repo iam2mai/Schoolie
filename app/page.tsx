@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { api, prettyDate } from "./lib/client.ts";
 
 interface Source {
   letterId: string;
@@ -11,15 +12,6 @@ interface Source {
 interface AskResult {
   answer?: string;
   sources: Source[];
-  error?: string;
-}
-
-function prettyDate(iso: string) {
-  return new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
 }
 
 // Turns "[2026-10-12-update.txt]" citations into small inline labels.
@@ -49,14 +41,7 @@ export default function AskPage() {
     setError("");
     setResult(null);
     try {
-      const res = await fetch("/api/ask", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ question: q }),
-      });
-      const data = (await res.json().catch(() => ({}))) as AskResult;
-      if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
-      setResult(data);
+      setResult(await api<AskResult>("/api/ask", { method: "POST", body: { question: q } }));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -67,12 +52,13 @@ export default function AskPage() {
   const letterCount = result ? new Set(result.sources.map((s) => s.letterId)).size : 0;
 
   return (
-    <section className="ask">
+    <section>
       <form onSubmit={submit} className="ask-form">
         <label htmlFor="question">Ask about the letters</label>
         <textarea
           id="question"
           value={question}
+          maxLength={1000}
           onChange={(e) => setQuestion(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
@@ -80,8 +66,8 @@ export default function AskPage() {
               submit(e as unknown as React.FormEvent);
             }
           }}
-          placeholder="e.g. When is the Year 3 field trip?"
-          rows={3}
+          placeholder="e.g. When is the Year 3 excursion and what does he need to bring?"
+          rows={2}
         />
         <button type="submit" disabled={loading || !question.trim()}>
           {loading ? "Thinking…" : "Ask"}
