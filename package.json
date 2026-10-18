@@ -18,13 +18,18 @@
     "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
     "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
     "start": "node src/server.ts",
-    "typecheck": "tsc -p ."
+    "typecheck": "tsc -p .",
+    "next:dev": "next dev",
+    "next:build": "next build",
+    "next:start": "next start"
   },
   "devDependencies": {
     "@jest/globals": "^30.5.2",
     "@swc/core": "^1.16.18",
     "@swc/jest": "^0.2.39",
     "@types/node": "^26.6.5",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
     "jest": "^30.5.2",
     "typescript": "^5.9.3"
   },
@@ -33,6 +38,9 @@
     "@langchain/openai": "^0.3.17",
     "@langchain/pinecone": "^0.2.0",
     "@pinecone-database/pinecone": "^5.0.2",
-    "langchain": "^0.3.7"
+    "langchain": "^0.3.7",
+    "next": "16.4.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   }
 }

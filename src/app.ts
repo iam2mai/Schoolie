@@ -12,6 +12,12 @@ import { callLLM, hasApiKey } from "./llm.ts";
 import { syncEvents, applyReplacements, type SchoolEvent } from "./events.ts";
 import { toICS } from "./ics.ts";
 
+// The school is in Melbourne, so all dates and times are interpreted in
+// Melbourne time unless the host explicitly sets TZ. Node applies a runtime
+// TZ change to subsequent Date operations, and every entry point (CLI, the old
+// server and the Next.js routes) imports this module, so one default covers all.
+process.env.TZ ??= "Australia/Melbourne";
+
 export const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 export interface Paths { letters: string; out: string; cache: string; ics: string }

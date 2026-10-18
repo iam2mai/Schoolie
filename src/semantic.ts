@@ -49,9 +49,11 @@ async function makeEmbeddings(env = process.env) {
 
   if (embeddingsProvider(env) === "voyage") {
     // Non-literal specifier so the type checker doesn't require this optional
-    // package (install it with: npm i @langchain/community).
+    // package (install it with: npm i @langchain/community). The ignore comments
+    // keep bundlers (Turbopack/webpack) from trying to resolve it at build time,
+    // so it stays a runtime import that's only reached when voyage is configured.
     const voyageModule = "@langchain/community/embeddings/voyage";
-    const { VoyageEmbeddings } = await import(voyageModule);
+    const { VoyageEmbeddings } = await import(/* webpackIgnore: true */ /* turbopackIgnore: true */ voyageModule);
     return new VoyageEmbeddings({ apiKey, modelName: env.VOYAGE_MODEL ?? DEFAULT_VOYAGE_EMBEDDING_MODEL });
   }
   const { OpenAIEmbeddings } = await import("@langchain/openai");
