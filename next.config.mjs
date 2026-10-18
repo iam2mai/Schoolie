@@ -14,6 +14,7 @@ const nextConfig = {
     "@langchain/core",
     "@langchain/openai",
     "@langchain/pinecone",
+    "@langchain/community",
     "@pinecone-database/pinecone",
   ],
 };
