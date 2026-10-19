@@ -5,7 +5,6 @@ import { hasApiKey } from "../../../src/llm.ts";
 import { appPaths } from "../../lib/api.ts";
 
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
 export async function POST() {
   return Response.json(await syncQuietly(appPaths()));

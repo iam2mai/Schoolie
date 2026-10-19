@@ -5,7 +5,6 @@ import { ask, UserError } from "../../../src/app.ts";
 import { appPaths, errorResponse, jsonBody } from "../../lib/api.ts";
 
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
 const MAX_QUESTION = 1000;
 
