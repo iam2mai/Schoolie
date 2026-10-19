@@ -17,12 +17,15 @@ function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(h(a), h(b));
 }
 
-// Best-effort client IP: behind a trusted proxy the real IP is the last entry
-// X-Forwarded-For (earlier ones can be forged); otherwise fall back to the header.
+// Client IP for rate-limiting. The Request API exposes no verified socket IP,
+// so X-Forwarded-For is only trusted behind a proxy that appends it
+// (TRUST_PROXY=1), where the real client is the last entry (earlier ones can be
+// forged). Without that, a direct client could rotate the header to get a fresh
+// allowance on every attempt, so everyone shares one conservative bucket.
 function clientIp(req: Request): string {
+  if (process.env.TRUST_PROXY !== "1") return "unknown";
   const xff = (req.headers.get("x-forwarded-for") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-  if (process.env.TRUST_PROXY === "1" && xff.length) return xff[xff.length - 1];
-  return xff[0] || "unknown";
+  return xff.at(-1) || "unknown";
 }
 
 export async function POST(req: Request) {
@@ -30,18 +33,22 @@ export async function POST(req: Request) {
     return Response.json({ error: "The server is missing SESSION_SECRET, so logins are disabled." }, { status: 500 });
   }
 
+  // Reserve an attempt synchronously, before any await, so concurrent requests
+  // can't read the same count and overwrite each other's increments. A
+  // malformed request below also consumes its reserved attempt.
   const ip = clientIp(req);
   const now = Date.now();
-  const entry = failedLogins.get(ip);
-  if (entry && entry.resetAt > now && entry.count >= LOGIN_LIMIT.attempts) {
+  const existing = failedLogins.get(ip);
+  const entry = existing && existing.resetAt > now ? existing : { count: 0, resetAt: now + LOGIN_LIMIT.windowMs };
+  if (entry.count >= LOGIN_LIMIT.attempts) {
     return Response.json({ error: "Too many attempts. Try again in a few minutes." }, { status: 429 });
   }
+  entry.count += 1;
+  failedLogins.set(ip, entry);
 
   const { password } = await jsonBody(req);
   const expected = process.env.APP_PASSWORD ?? "";
   if (typeof password !== "string" || !expected || !safeEqual(password, expected)) {
-    const fresh = !entry || entry.resetAt <= now;
-    failedLogins.set(ip, { count: fresh ? 1 : entry.count + 1, resetAt: fresh ? now + LOGIN_LIMIT.windowMs : entry.resetAt });
     return Response.json({ error: "Wrong password." }, { status: 401 });
   }
 
