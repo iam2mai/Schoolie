@@ -6,7 +6,6 @@ import { freshCookie } from "../../lib/cookie.ts";
 import { jsonBody } from "../../lib/api.ts";
 
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
 const LOGIN_LIMIT = { attempts: 10, windowMs: 15 * 60_000 };
 const failedLogins = new Map<string, { count: number; resetAt: number }>();

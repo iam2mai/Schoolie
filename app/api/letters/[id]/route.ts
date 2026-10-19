@@ -4,7 +4,6 @@ import { appPaths, errorResponse } from "../../../lib/api.ts";
 import { syncQuietly } from "../../sync/route.ts";
 
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {

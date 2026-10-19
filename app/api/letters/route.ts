@@ -6,7 +6,6 @@ import { appPaths, errorResponse, jsonBody } from "../../lib/api.ts";
 import { syncQuietly } from "../sync/route.ts";
 
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
 export function GET() {
   try {

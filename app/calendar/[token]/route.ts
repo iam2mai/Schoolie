@@ -7,7 +7,6 @@ import { cachedEvents, calendarName } from "../../../src/app.ts";
 import { appPaths } from "../../lib/api.ts";
 
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
 // Constant-time comparison; hashing first makes the lengths equal.
 function safeEqual(a: string, b: string): boolean {
