@@ -1,0 +1,39 @@
+# Fly.io deployment config. One-time setup, then deploy:
+#
+#   fly apps create schoolie                 # pick a free, globally-unique name
+#   fly volumes create schoolie_data --size 1 --region syd
+#   fly secrets set APP_PASSWORD=your-long-password \
+#                   SESSION_SECRET=$(openssl rand -hex 32)
+#   fly deploy
+#
+# APP_PASSWORD and SESSION_SECRET are secrets, so they live in `fly secrets`,
+# never in this file. If the app name below is taken, change it here and in the
+# `fly apps create` / volume commands to match.
+
+app = "schoolie"
+primary_region = "syd"   # Sydney — closest Fly region to Melbourne
+
+[build]
+
+[env]
+  DATA_DIR = "/data"
+  TZ = "Australia/Melbourne"
+  PORT = "8080"
+  TRUST_PROXY = "1"
+
+# Persistent storage for the letters and the events cache. Without this the
+# uploaded letters are wiped on every deploy.
+[[mounts]]
+  source = "schoolie_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0   # scale to zero when idle (single-user app)
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

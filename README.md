@@ -67,44 +67,43 @@ real ones.
 
 ## Website
 
-`npm start` runs a password-protected website with the same features: ask a
-question, add a letter by pasting text or opening a file, see the next six
-weeks of dates, and subscribe to them in your phone's calendar.
+The website is a [Next.js](https://nextjs.org) (App Router) app with the same
+features: ask a question, add a letter by pasting text or opening a file, see
+the next six weeks of dates, and subscribe to them in your phone's calendar.
 
 ```bash
 # in .env: APP_PASSWORD (10+ characters), SESSION_SECRET, and an LLM key
-npm start                 # http://localhost:3000
+npm run next:dev                   # development, http://localhost:3000
+# or a production build locally:
+npm run next:build && npm start    # http://localhost:3000
 ```
 
 The LLM API key stays on the server; the browser only ever talks to this app.
 
-### Deploying (Fly.io example)
+### Deploying (Fly.io)
 
-Any host that runs a Dockerfile and offers a persistent disk works (Fly.io,
-Render, Railway). Letters and dates are stored in `/data`, so that **must** be
-a persistent volume, or they disappear on every deploy. Run a single instance:
+The repo ships a `Dockerfile` (a Next.js standalone build) and a `fly.toml`, so
+any host that runs a Dockerfile and offers a persistent disk works (Fly.io,
+Render, Railway). Letters and dates are stored in `/data`, so that **must** be a
+persistent volume, or they disappear on every deploy. Run a single instance:
 syncs are coordinated in memory.
 
 ```bash
-fly launch --no-deploy                 # picks up the Dockerfile; choose a region near you
-fly volumes create data --size 1       # 1 GB is plenty
-# add to fly.toml:
-#   [mounts]
-#     source = "data"
-#     destination = "/data"
+fly apps create schoolie               # pick a free, globally-unique name
+fly volumes create schoolie_data --size 1 --region syd   # 1 GB is plenty
 fly secrets set \
   APP_PASSWORD='a long passphrase' \
   SESSION_SECRET=$(openssl rand -hex 32) \
   CALENDAR_TOKEN=$(openssl rand -hex 24) \
-  ANTHROPIC_API_KEY=sk-ant-... \
-  TZ=Australia/Melbourne
+  ANTHROPIC_API_KEY=sk-ant-...
 fly deploy
-fly scale count 1
 ```
 
-Set `TZ` to your time zone: servers default to UTC, which shifts "today" and
-"this Friday". The sample letters are not deployed; add yours from the Letters
-tab.
+`DATA_DIR`, `TRUST_PROXY`, the `/data` mount and `TZ=Australia/Melbourne` are
+already set in `fly.toml` / the Dockerfile — `TZ` matters because servers
+default to UTC, which shifts "today" and "this Friday". Only the secrets above
+are set separately (they never belong in a committed file). The sample letters
+are not deployed; add yours from the Letters tab.
 
 ### What protects it
 
@@ -113,7 +112,8 @@ tab.
 - Sessions are signed, HttpOnly, `SameSite=Strict` cookies that last 30 days.
   Changing `SESSION_SECRET` logs everyone out.
 - Cross-site requests are refused (Origin check, JSON-only writes), and a
-  strict Content Security Policy blocks injected scripts.
+  Content Security Policy locks scripts, styles, images and connections to
+  this app (no third-party or remote origins).
 - The calendar URL is protected only by `CALENDAR_TOKEN`, since calendar apps
   can't log in. Share it only with family; change the token to revoke it.
 - LLM API errors are logged on the server, not shown in the browser.
@@ -253,9 +253,10 @@ src/llm.ts        Claude or OpenAI via fetch, optional forced tool call
 src/events.ts     date extraction prompt + schema, cache, replacement logic
 src/ics.ts        iCalendar writer with VALARMs, RFC 5545 escaping and folding
 src/app.ts        ask, sync, upcoming, save/list/delete letters (shared by CLI and website)
-src/server.ts     website: node:http server, login, JSON API, calendar feed
-public/           the web page (plain HTML, CSS and JS, no build step)
 src/cli.ts        ask / sync / upcoming / search / compare / reindex
+app/              the Next.js website: pages, API routes, login, calendar feed
+app/lib/          session cookies, auth helpers, shared fetch + API helpers
+middleware.ts     session gate, Origin check, CSP + security headers
 test/             Jest unit tests per module, plus pipeline.test.ts end to end
 ```
 

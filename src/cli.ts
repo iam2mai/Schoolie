@@ -7,7 +7,7 @@
 //   node src/cli.ts reindex        load every letter into the vector index
 //   node src/cli.ts compare "hat"  keyword vs semantic vs hybrid, side by side
 //
-// The website (src/server.ts) offers the same things in a browser.
+// The website (the Next.js app in app/) offers the same things in a browser.
 
 import { join } from "node:path";
 import { loadLetters, chunkLetter } from "./letters.ts";
